@@ -1,9 +1,9 @@
-Varnish MaxMind GeoIP vmod
---------------------------
+libvmod-maxmind-geoip
+=====================
 
-This vmod provides the ability to lookup location information based on IP address. The GeoIP database is a mmap'd red black tree implementation that's read-only. The code opens the database when the vmod is initialized and shutdown when the thread is terminated, leaving the database open for the life of the thread. The most expensive operation is opening the MaxMind database.
+The vmod provides the ability to lookup location information based on IP address. The GeoIP database is a mmap'd red black tree implementation that's read-only. The code opens the database when the vmod is initialized and shutdown when the thread is terminated, leaving the database open for the life of the thread. The most expensive operation is opening the MaxMind database.
 
-The vmod uses the MaxMind City database. 
+The vmod uses the MaxMind City database.
 
 ## Usage
 
@@ -34,6 +34,7 @@ The location call generates json e.g. geo.location("199.254.0.98") would return
 
 ## Testing
 There are unit tests and varnishtest scripts. The unit tests are in the tests folder. Edit tests/tests.c and rerun make && make test
+
 The unit tests are done with unity https://mark-vandervoord-yxrv.squarespace.com/unity
 Varnishtest scripts are in src/tests. To run the tests:
 
@@ -43,7 +44,7 @@ make test
 
 ## Installation
 
-The vmod depends on having the following installed:
+The vmod depends on having varnish 4.1 and libmaxmind installed as RPM.
 
 * Varnish - https://github.com/varnish/Varnish-Cache
 * libmaxminddb - https://github.com/maxmind/libmaxminddb
@@ -53,17 +54,27 @@ http://maxmind.github.io/MaxMind-DB provides an indepth look at the MaxMind GeoI
 You can get a copy of the city database from here: https://dev.maxmind.com/geoip/geoip2/geolite2/
 
 ### Step 1 - install varnish-cache
+
+```
+yum install -y varnish-cache
+```
+
+See https://github.com/nytm/varnish-cache
+
+
+If you wanted to build from source, you could do something like this:
 ```
 cd /usr/local/src
-git clone -b 4.1 https://github.com/varnish/Varnish-Cache.git
-cd Varnish-Cache
+git clone -b 4.1 https://github.com/varnish/varnish-cache.git
+cd varnish-cache
 ./autogen.sh
 ./configure --prefix=/usr --libdir=/usr/lib64 # <- change this to lib if your on a 32 bit system
 make
 sudo make install
 ```
 
-**NOTE:** I received the following after running make:
+**NOTE:** I received the following:
+ after running make:
 
 ``You need rst2man installed to make dist``
 
@@ -74,6 +85,13 @@ I then re-ran everything from ./autogen.sh onward.
 Varnish 4.1 publishes a package config file, so make sure you set libdir correctly or you will have to specify the PKG_CONFIG_PATH in step 3
 
 ### Step 2 - install libmaxmind
+
+```
+yum install -y libmaxind
+```
+
+If you wanted to install from source, I did the following:
+
 ```
 cd ..
 git clone --recursive https://github.com/maxmind/libmaxminddb.git
@@ -81,17 +99,17 @@ cd libmaxminddb
 git submodule update
 ./bootstrap
 ./configure --prefix=/usr
-make 
+make
 sudo make install
 cd ..
 ```
 
 ### Step 3 - build the mddb vmod
 ```
-git clone git@github.com:nytm/varnish-mmdb-vmod.git
-cd varnish-mmdb-vmod
+git clone git@github.com:nytm/libvmod-maxmind-geoip.git
+cd libvmod-maxmind-geoip
 ./autogen.sh
-./configure --prefix=/usr --with-maxminddbfile=/mnt/mmdb/GeoIP2-City.mmdb VMODDIR=/usr/lib64/varnish/vmods 
+./configure --prefix=/usr --with-maxminddbfile=/mnt/mmdb/GeoIP2-City.mmdb VMODDIR=/usr/lib64/varnish/vmods
 make
 sudo make install
 ```
@@ -104,4 +122,3 @@ sudo make install
 ```
 #define MAX_CITY_DB "/mnt/mmdb/GeoLite2-City.mmdb"
 ```
-
