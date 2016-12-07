@@ -1,0 +1,43 @@
+#!/bin/bash
+set -ETeu -o pipefail
+
+printHelp() {
+	echo "usage: ${0} <name> <workspace>"
+	exit 1
+}
+
+if [[ "${1}" == "" || "${2}" == "" ]]; then
+	printHelp
+fi
+
+# name should match the rpm being built
+# spec is the specfile
+# buildroot is where the code is.
+# build_number is going to be the number of git commits
+
+name="libvmod-maxmind-geoip"
+spec="${name}.spec"
+buildroot="${2}"
+version=4.1.0
+build_number=$(git rev-list HEAD | wc -l)
+
+rpmbuild --verbose \
+		 -ba ${buildroot}/${spec} \
+		 --define "_version_number ${version}" \
+		 --define "_build_number ${build_number}" \
+		 --define "_source ${buildroot}"
+
+for e in $(find /var/lib/jenkins/rpmbuild -name ${name}*.rpm); do
+	/usr/bin/sign-rpm $e
+	/usr/bin/publish-rpm $e
+	if [[ ! "${e}" =~ (debuginfo|src.rpm) ]]; then
+		rpm=$(echo ${e}|sed 's|.*/||')
+	fi
+	rm -f $e
+done
+
+echo "BUILD=${build_number}" > ${buildroot}/version.properties
+echo "VERSION=${version}-${build_number}" >> ${buildroot}/version.properties
+echo "RPM=$rpm" >> ${buildroot}/version.properties
+echo $rpm
+exit 0
