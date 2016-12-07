@@ -1,0 +1,62 @@
+varnishtest "Testing regex works"
+
+########################################################################
+# when I removed some nasty inline C, i needed to make sure my regex
+# would work
+########################################################################
+
+server s1 {
+       rxreq
+       txresp
+       rxreq
+       txresp
+       rxreq
+       txresp
+} -start
+
+
+varnish v1 -vcl+backend {
+
+	import geo from "${vmod_topbuild}/src/.libs/libvmod_geo.so";
+	import std;
+    
+	sub vcl_deliver {
+
+       set resp.http.BoolVal     = regsub(req.url, "^.*(use_cache=false|use_cache=true).*$", "\1");
+       set resp.http.burl = regsub(req.url, "(use_cache=false|use_cache=off|use_cache=no)", "");
+       set resp.http.burl = regsub(resp.http.burl, "\?&", "?");
+       set resp.http.burl = regsub(resp.http.burl, "\?$", "");
+       
+       set resp.http.apikeyclean = regsub(req.url, "(api-key=[A-Za-z0-9%]+)", "");
+       set resp.http.apikeyclean = regsub(resp.http.apikeyclean, "\?&", "?");
+       set resp.http.apikeyclean = regsub(resp.http.apikeyclean, "\?$", "");
+
+       set resp.http.jquery      = regsub(req.url, "(_=[0-9]+)", "");
+       set resp.http.jquery      = regsub(resp.http.jquery, "&$", "");
+	}
+
+} -start
+
+client c1 {
+	txreq -url "/info?use_cache=false" 
+	rxresp
+    expect resp.http.BoolVal == "use_cache=false"
+    expect resp.http.burl == "/info"
+}
+
+client c2 {
+	txreq -url "/svc/mostpopular/v2/mostviewed/all-sections/1.json?api-key=ec6c3dedfa9c3faff413ab1b50238847%3A9%3A68891603"
+	rxresp
+    expect resp.http.apikeyclean == "/svc/mostpopular/v2/mostviewed/all-sections/1.json"
+}
+
+client c3 {
+	txreq -url "/svc/weather/v2/current-and-five-day-forecast/ip.jsonp?callback=jQuery21109923271487932652_1423729674602&_=1423729674603" 
+	rxresp
+    expect resp.http.jquery == "/svc/weather/v2/current-and-five-day-forecast/ip.jsonp?callback=jQuery21109923271487932652_1423729674602"
+}
+
+client c1 -run
+client c2 -run
+client c3 -run
+

@@ -1,0 +1,292 @@
+varnishtest "Testing the functionality of removing bad data"
+
+########################################################################
+# anther test to make sure my regex logic works after cleaning out inline c
+# this is a copy/paste of our VCL. I wanted to test much closer to what we
+# have in our VCL today.
+########################################################################
+
+server s1 {
+       rxreq
+       txresp
+} -start
+
+
+varnish v1 -vcl+backend {
+import std;
+import geo from "${vmod_topbuild}/src/.libs/libvmod_geo.so";
+
+//include "/etc/varnish/nyt-varnish-loadbalancer.vcl";
+
+sub vcl_init {
+
+}
+
+sub vcl_fini {
+
+}
+
+sub vcl_recv {
+
+    if (req.method == "PURGE") {
+        std.log("DU_url:" + req.url);
+        return(hash);
+    }
+
+    if (req.method == "BAN") {
+        std.log("DU_url:" + req.url);
+        set req.url = regsuball(req.url, "%2F", "/");
+        set req.url = regsuball(req.url, "%5A", "^");
+        set req.url = regsuball(req.url, "%2A", "*");
+        set req.url = regsub(req.url, "^/{1}", "");
+        ban("obj.http.x-url ~ " + req.url);
+        return (synth(200, "BAN Set for "+ req.url));
+    }
+
+    if (req.method != "GET" &&
+        req.method != "HEAD" &&
+        req.method != "PUT" &&
+        req.method != "POST" &&
+        req.method != "TRACE" &&
+        req.method != "OPTIONS" &&
+        req.method != "DELETE") {
+        // Non-RFC2616 or CONNECT which is weird.
+        std.log("DU_url:" + req.url);
+        return(pipe);
+    }
+
+    if (req.method != "GET" && req.method != "HEAD") {
+        // We only deal with GET and HEAD by default
+        std.log("DU_url:" + req.url);
+        return(pass);
+    }
+
+    if ( ( req.url !~ "^/svc/bitly/.*"
+           && req.url !~ "^/svc/books/.*"
+           && req.url !~ "^/svc/crosswords/.*"
+           && req.url !~ "^/svc/dining/.*"
+           && req.url !~ "^/svc/events/.*"
+           && req.url !~ "^/svc/mostpopular/.*"
+           && req.url !~ "^/svc/movies/.*"
+           && req.url !~ "^/svc/news/.*"
+           && req.url !~ "^/svc/real-estate/.*"
+           && req.url !~ "^/svc/semantic/.*"
+           && req.url !~ "^/svc/topics/.*"
+           && req.url !~ "^/svc/weather/.*"
+             )
+        ) {
+        std.log("DU_url:" + req.url);
+        return(pass);
+    }
+
+    if (req.restarts == 0) {
+        if (req.http.x-forwarded-for) {
+            set req.http.X-Forwarded-For =
+                req.http.x-real-ip  + ", " + req.http.X-Forwarded-For + ", " + client.ip;
+        }
+        else {
+            set req.http.X-Forwarded-For = req.http.x-real-ip + ", " + client.ip;
+        }
+    }
+
+    // logic to do weather based on IP or NYT-W2 cookie
+    if ((req.url ~ "/svc/weather/v2/current.json") || (req.url ~ "/svc/weather/v2/current-and-five-day-forecast.json") || (req.url ~ "/svc/weather/v2/current-and-seven-day-forecast.json")) {
+        if (req.restarts == 0) {
+            if (req.http.Cookie ~ "NYT_W2=[a-zA-Z0-9%:\-|]+") {
+                set req.http.X-Weather = geo.get_weather_cookie(req.http.Cookie, "NYT_W2");
+                set req.url = regsub(req.url, ".json", "/" + req.http.X-Weather + ".json") ;
+            } else {
+                // i think we want the first forwarded for ip.
+                if (req.http.X-Forwarded-For ~ ",") {
+                    if (!req.http.IP) {
+                        set req.http.IP = regsuball(req.http.X-Forwarded-For, ",.*", "");
+                    }
+                } else {
+                    if (!req.http.IP) {
+                        set req.http.IP = req.http.x-real-ip;
+                    }
+                }
+                set req.http.X-Weather = geo.weather_code(req.http.IP);
+                set req.http.X-Weather = regsuball(req.http.X-Weather, " ", "%20");
+                set req.url = regsub(req.url, ".json", "/" + req.http.X-Weather + ".json") ;
+            }
+        }
+    }
+
+    if (req.http.Accept-Encoding) {
+        if (req.http.Accept-Encoding ~ "gzip") {
+            set req.http.Accept-Encoding = "gzip";
+        }
+        elsif (req.http.Accept-Encoding ~ "deflate") {
+            set req.http.Accept-Encoding = "deflate";
+        }
+        else {
+            unset req.http.Accept-Encoding;
+        }
+    }
+
+    // remove api-key= from the url if it exists
+    if ( req.url ~ "api-key=" ) {
+        // clean out the api-key
+        set req.http.clean = regsuball(req.url, "(api-key=[A-Za-z0-9%]+)", "");
+        set req.http.clean = regsub(req.http.clean, "\?&", "?");
+        set req.http.clean = regsub(req.http.clean, "&&",  "&");
+        set req.http.clean = regsub(req.http.clean, "&$",  "");
+        set req.http.clean = regsub(req.http.clean, "\?$", "");
+        set req.url        = req.http.clean;
+    }
+    std.log("DU_url after 1:" + req.url);
+    // remove jquery cache buster if it exists
+    if (req.url ~ "(_=[0-9]+)") {
+        set req.http.clean = regsuball(req.url, "(_=[0-9]+)", "");
+        set req.http.clean = regsub(req.http.clean, "\?&", "?");
+        set req.http.clean = regsub(req.http.clean, "&&",  "&");
+        set req.http.clean = regsub(req.http.clean, "&$",  "");
+        set req.http.clean = regsub(req.http.clean, "\?$", "");
+        set req.url        = req.http.clean;
+    }
+    std.log("DU_url after 2:" + req.url);
+    // Check for use_cache parameters
+    if ( req.url ~ "use_cache=false"
+         || req.url ~ "use_cache=off"
+         || req.url ~ "use_cache=no"
+        ) {
+        set req.http.X-Use-Cache = "false";
+        set req.url = regsub(req.url, "^.*(use_cache=false|use_cache=off|use_cache=no).*$", "");
+        set req.url = regsub(req.url, "\?&", "?");
+        set req.url = regsub(req.url, "\?$", "");
+        set req.hash_always_miss = true;
+    }
+
+    // Save the modified URL so varnishncsa shows it
+    std.log("DU_url last:" + req.url);
+    return(hash);
+}
+
+sub vcl_hash {
+    hash_data(req.url);
+    return(lookup);
+}
+
+sub vcl_hit {
+    if (req.method == "PURGE") {
+        return(synth(200, "purged."));
+    }
+}
+
+sub vcl_miss {
+    if (req.method == "PURGE") {
+        return(synth(200, "purged."));
+    }
+
+    // Check for X-Use-Cache header and add it back to the url if present
+    if (req.http.X-Use-Cache) {
+        if ( req.url ~ "\?" ) {
+            set req.url = req.url + "&" + req.http.X-Use-Cache;
+        } else {
+            set req.url = req.url + "?" + req.http.X-Use-Cache;
+        }
+        
+        std.log("DU_url:" + req.url);
+    }
+}
+
+sub vcl_backend_response {
+
+    unset beresp.http.Via;
+
+    // Save the req.url so bans work efficiently
+    set beresp.http.x-url = bereq.url;
+
+    // Do not cache 500 responses
+    if (beresp.status >= 500) {
+        set beresp.ttl = 0s;
+        return(deliver);
+    }
+
+    else if (beresp.ttl <= 0s ||
+             beresp.http.Vary == "*") {
+        // Mark as "Hit-For-Pass" for the next 2 minutes
+        //set beresp.ttl = 120s;
+        set beresp.uncacheable = true;
+        return(deliver);
+    }
+
+    // If no TTL header was included then use the DU default TTLs
+    if (!(beresp.http.Cache-control || beresp.http.Expires)) {
+        if ( bereq.url ~ "^/svc/bitly/.*" ) {
+            set beresp.ttl = 24h;
+        }
+        else if ( bereq.url ~ "^/svc/books/.*" ) {
+            set beresp.ttl = 1h;
+        }
+        else if ( bereq.url ~ "^/svc/dining/(v[0-9]+/)?recipes/brief/.*" ) {
+            set beresp.ttl = 6h;
+        }
+        else if ( bereq.url ~ "^/svc/movies/.*" ) {
+            set beresp.ttl = 12h;
+        }
+        else if ( bereq.url ~ "^/svc/news/.*" ) {
+            set beresp.ttl = 2m;
+        }
+        else if ( bereq.url ~ "^/svc/semantic/.*" ) {
+            set beresp.ttl = 90m;
+        }
+        else if ( bereq.url ~ "^/svc/topics/v2/markets.*" ) {
+            set beresp.ttl = 5s;
+        }
+        else if ( bereq.url ~ "^/svc/tv/.*" ) {
+            set beresp.ttl = 12h;
+        }
+        else if ( bereq.url ~ "^/svc/weather/.*" ) {
+            set beresp.ttl = 30m;
+        }
+        else {
+            set beresp.ttl = 20m;
+        }
+    }
+
+    return(deliver);
+}
+
+sub vcl_deliver {
+
+        //set resp.http.Connection = "close";
+
+    // Clear this value that was only used to make BANs work properly
+    unset resp.http.x-url;
+
+    // Insert Diagnostic header to show Hit or Miss
+    if (obj.hits > 0) {
+        set resp.http.X-Cache = "HIT";
+        set resp.http.X-Cache-Hits = obj.hits;
+    }
+    else {
+        set resp.http.X-Cache = "MISS";
+    }
+    set resp.http.clean = req.http.clean;
+    
+    return(deliver);
+}
+
+// Used for PURGE responses
+sub vcl_backend_error {
+    synthetic({"<p>"} + beresp.reason + {"</p>"});
+    return(deliver);
+}
+
+sub vcl_synth {
+    synthetic({"<p>"} + resp.reason + {"</p>"});
+    return(deliver);
+}
+
+} -start
+
+client c1 {
+	txreq -url "/svc/bitly/srvc.json?api-key=abc%20qwer1234&another=value&_=123412341234&name=value&_=12341234"
+	rxresp
+    expect resp.http.clean == "/svc/bitly/srvc.json?another=value&name=value"
+}
+
+client c1 -run
+

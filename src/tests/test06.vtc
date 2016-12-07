@@ -1,0 +1,47 @@
+varnishtest "Location Service Test"
+
+########################################################################
+# make sure all of our expectations for the location service work as
+# expected
+########################################################################
+
+server s1 {
+       rxreq
+       txresp
+} -start
+
+
+varnish v1 -vcl+backend {
+	import geo from "${vmod_topbuild}/src/.libs/libvmod_geo.so";
+	import std;
+
+  sub vcl_recv {
+   if (req.url ~ "/svc/location/v1/current.json") {
+          set req.http.IP = "199.254.0.98";
+          return(synth(200, "199.254.0.98"));
+   }
+  }
+
+  sub vcl_synth{
+    set resp.http.Content-Type = "text/json; charset=utf-8";
+    synthetic(geo.location(req.http.IP));
+    return(deliver);
+  }
+
+//  sub vcl_backend_error {
+//      if (req.url ~ "/svc/location/v1/current.json") {
+//          return(synth(200, req.http.IP));
+//      }
+//  }
+
+} -start
+
+client c1 {
+	txreq -url "/svc/location/v1/current.json"
+	rxresp
+    expect resp.body == "{\"city\":\"Beverly Hills\",\"state\":\"CA\",\"country\":\"US\"}"
+}
+
+client c1 -run
+
+

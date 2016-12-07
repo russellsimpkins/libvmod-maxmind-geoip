@@ -1,0 +1,28 @@
+varnishtest "Timezone Service Default Test"
+
+########################################################################
+# Test to make sure we get the correct timezone for IP
+########################################################################
+
+server s1 {
+    rxreq
+    expect req.http.X-Timezone == "{\"timezone\":\"America/New_York\"}"
+    txresp
+} -start
+
+
+varnish v1 -vcl+backend {
+	import geo from "${vmod_topbuild}/src/.libs/libvmod_geo.so";
+	import std;
+
+    sub vcl_recv{
+        set req.http.X-Timezone = geo.timezone("170.149.100.69");
+    }
+} -start
+
+client c1 {
+	txreq -url "/svc/location/v1/current.json"
+	rxresp
+}
+
+client c1 -run

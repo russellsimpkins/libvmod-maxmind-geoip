@@ -1,0 +1,31 @@
+varnishtest "Testing regex to remove the api key"
+########################################################################
+# when I removed some nasty inline C, i needed to make sure my regex
+# would work
+########################################################################
+server s1 {
+       rxreq
+       txresp
+} -start
+
+
+varnish v1 -vcl+backend {
+    import geo from "${vmod_topbuild}/src/.libs/libvmod_geo.so";
+    sub vcl_recv {
+        set req.http.IP = "188.178.203.190";
+        set req.http.Weather = "iso-Copenhagen--DK";
+        set req.http.X-Weather = geo.weather_code(req.http.IP);
+    }
+    sub vcl_deliver {
+       set req.http.Cookie = "/svc/news/v3/content/all/all/.json?offset=320&api-key=5fa60494024b4c3c13ecb72011023ad8%3A11%3A69972922";
+       set resp.http.hello = regsub(req.http.Cookie, "api-key=[a-zA-Z0-9%]+&?", "");
+    }
+} -start
+
+client c1 {
+    txreq -url "/svc/weather/v2/current-and-seven-day-forecast.json"
+    rxresp
+    expect resp.http.hello == "/svc/news/v3/content/all/all/.json?offset=320&"
+}
+
+client c1 -run

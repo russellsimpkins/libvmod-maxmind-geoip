@@ -1,0 +1,24 @@
+varnishtest "Timezone Service Test"
+
+server s1 {
+       rxreq
+          expect req.http.X-Timezone == "{\"timezone\":\"America/Los_Angeles\"}"
+       txresp
+} -start
+
+
+varnish v1 -vcl+backend {
+	import geo from "${vmod_topbuild}/src/.libs/libvmod_geo.so";
+	import std;
+
+  sub vcl_recv{
+    set req.http.X-Timezone = geo.timezone("199.254.0.98");
+  }
+} -start
+
+client c1 {
+	txreq -url "/svc/location/v1/current.json"
+	rxresp
+}
+
+client c1 -run

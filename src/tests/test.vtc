@@ -1,0 +1,28 @@
+varnishtest "Cache busting test"
+ server s1 {
+       rxreq
+       expect req.url == "/foo/svc.json?api-key=abc%20qwer1234&another=value&name=value"
+       txresp
+} -start
+varnish v1 -vcl+backend {
+    import std;
+    sub vcl_recv {
+        if (req.url ~ "_=[0-9]+") {
+            set req.http.clean = regsuball(req.url, "(_=[0-9]+)", "");
+            set req.http.clean = regsub(req.http.clean, "\?&", "?");
+            set req.http.clean = regsub(req.http.clean, "&&",  "&");
+            set req.http.clean = regsub(req.http.clean, "&$",  "");
+            set req.http.clean = regsub(req.http.clean, "\?$", "");
+            set req.url = req.http.clean;
+        }
+    }
+    sub vcl_deliver {
+        set resp.http.clean = req.http.clean;
+    }
+} -start
+client c1 {
+    txreq -url "/foo/svc.json?api-key=abc%20qwer1234&another=value&_=123412341234&name=value&_=12341234"
+    rxresp
+    expect resp.http.clean == "/foo/svc.json?api-key=abc%20qwer1234&another=value&name=value"
+}
+client c1 -run
