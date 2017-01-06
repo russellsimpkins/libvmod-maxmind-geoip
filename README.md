@@ -11,21 +11,21 @@ The vmod uses the MaxMind City database.
 import geo
    // ....
    sub vcl_recv {
-	 set req.http.X-Country     = geo.country("170.149.100.10")
-	 set req.http.X-CountryCode = geo.country_code("170.149.100.10")
-	 set req.http.X-Region      = geo.region("170.149.100.10")
-	 set req.http.X-MetroCode   = geo.metro_code("170.149.100.10")
-	 set req.http.X-City        = geo.city("170.149.100.10")
-	 set req.http.X-Timezone    = geo.timezone("170.149.100.10")
-	 set req.http.X-Location    = geo.location("170.149.100.10")
+     set req.http.X-Country     = geo.country("170.149.100.10")
+     set req.http.X-CountryCode = geo.country_code("170.149.100.10")
+     set req.http.X-Region      = geo.region("170.149.100.10")
+     set req.http.X-MetroCode   = geo.metro_code("170.149.100.10")
+     set req.http.X-City        = geo.city("170.149.100.10")
+     set req.http.X-Timezone    = geo.timezone("170.149.100.10")
+     set req.http.X-Location    = geo.location("170.149.100.10")
 
-	 //# nytimes specific stuff
-	 set req.http.Weather-Code   = geo.weather_code("170.149.100.10")
-	 set req.http.Weather-Cookie = geo.get_weather_cookie(req.http.Cookie, "NYT_W2)
-	 set req.http.Cookie-Value   = geo.get_cookie(req.http.Cookie, "NYT_W2")
+     //# nytimes specific stuff
+     set req.http.Weather-Code   = geo.weather_code("170.149.100.10")
+     set req.http.Weather-Cookie = geo.get_weather_cookie(req.http.Cookie, "NYT_W2)
+     set req.http.Cookie-Value   = geo.get_cookie(req.http.Cookie, "NYT_W2")
 
-	}
-	// ....
+    }
+    // ....
 }
 ```
 The location call generates json e.g. geo.location("199.254.0.98") would return
@@ -84,10 +84,10 @@ I was able to get past this by installing python-docutils with:
 I then re-ran everything from ./autogen.sh onward.
 Varnish 4.1 publishes a package config file, so make sure you set libdir correctly or you will have to specify the PKG_CONFIG_PATH in step 3
 
-### Step 2 - install libmaxmind
+### Step 2 - install libmaxminddb
 
 ```
-yum install -y libmaxind
+yum install -y libmaxinddb
 ```
 
 If you wanted to install from source, I did the following:
