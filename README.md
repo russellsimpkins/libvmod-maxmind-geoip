@@ -44,6 +44,12 @@ make test
 
 ## Installation
 
+Below you'll find how to install on:
+- Fedora
+- Debian
+
+## Installation on Fedora (3 steps)
+
 The vmod depends on having varnish 4.1 and libmaxmind installed as RPM.
 
 * Varnish - https://github.com/varnish/Varnish-Cache
@@ -76,10 +82,12 @@ sudo make install
 **NOTE:** I received the following:
  after running make:
 
-``You need rst2man installed to make dist``
+`You need rst2man installed to make dist`
 
 I was able to get past this by installing python-docutils with:
-```yum install python-docutils```
+```
+yum install python-docutils
+```
 
 I then re-ran everything from ./autogen.sh onward.
 Varnish 4.1 publishes a package config file, so make sure you set libdir correctly or you will have to specify the PKG_CONFIG_PATH in step 3
@@ -113,6 +121,35 @@ cd libvmod-maxmind-geoip
 make
 sudo make install
 ```
+Make sure to read the NOTES below.
+
+## Installation on Debian (Jessie)
+Considering you already have Varnish installed, else you may have a look here: https://varnish-cache.org/releases/install_debian.html#packages-from-repo-varnish-cache-org-5-0 (do use Packages from Varnish website, these are up-to-date).
+
+Tested version below was Varnish 4.1.5 (with success!)
+
+First install the backports for Jessie, if you don't already have it, by editing your `/etc/apt/sources.list` and adding this line (at the end of the file if you don't really know what `sources.list` is!):
+```
+deb http://ftp.debian.org/debian jessie-backports main
+```
+Update aptitude/apt (`ruby` is needed for the tests, but you can omit it if you really don't want it):
+```
+sudo aptitude update
+sudo aptitude install libmaxminddb-dev ruby
+```
+Compile the VMOD:
+```
+git clone https://github.com/russellsimpkins/libvmod-maxmind-geoip.git
+cd libvmod-maxmind-geoip
+./autogen.sh
+./configure --with-maxminddbfile=/usr/share/GeoIP/GeoLiteIP2-Country.mmdb
+make
+sudo make install
+```
+You may want to fix the mmdb path, and perhaps use https://github.com/maxmind/geoipupdate for automatic updates
+
+
+## Notes
 
 **NOTE** I added support for a flag in autoconf:  **--with-maxminddbfile** so that you can decide, when you build the module, where you're data file will live. If you don't specify a value the default will be used **/mnt/mmdb/GeoIP2-City.mmdb** See src/vmod_geo.h
 
