@@ -106,7 +106,7 @@ cd ..
 
 ### Step 3 - build the mddb vmod
 ```
-git clone git@github.com:nytm/libvmod-maxmind-geoip.git
+git clone https://github.com/russellsimpkins/libvmod-maxmind-geoip.git
 cd libvmod-maxmind-geoip
 ./autogen.sh
 ./configure --prefix=/usr --with-maxminddbfile=/mnt/mmdb/GeoIP2-City.mmdb VMODDIR=/usr/lib64/varnish/vmods
@@ -116,7 +116,7 @@ sudo make install
 
 **NOTE** I added support for a flag in autoconf:  **--with-maxminddbfile** so that you can decide, when you build the module, where you're data file will live. If you don't specify a value the default will be used **/mnt/mmdb/GeoIP2-City.mmdb** See src/vmod_geo.h
 
-**NOTE** Varnish 4.1 installes a package config. If varnish installs the varnish.pc file in the wrong directory, you will need to specify in the configure command e.g. PKG_CONFIG_PATH=/usr/lib/pkgconfig
+**NOTE** Varnish 4.1 installs a package config. If varnish installs the varnish.pc file in the wrong directory, you will need to specify in the configure command e.g. PKG_CONFIG_PATH=/usr/lib/pkgconfig
 
 
 ```
